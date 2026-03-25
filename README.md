@@ -118,7 +118,7 @@ This project is aligned with research topics including:
 
 **Yuanzhe (Nikola) Chen**
 
-PhD Applicant (Fall 2027, preferred in United States) | Autonomous Driving & Robotics | Control, Planning & Energy Systems | M.Eng (EE) @ UNSW
+PhD Applicant (Fall 2027, United States preferred) | Autonomous Driving & Robotics | Control, Planning & Energy Systems | M.Eng (EE) @ UNSW
 
 Research interests:
 
