@@ -55,11 +55,10 @@ This repository is designed as a **research playground** for:
 ```
 bev-autonomous-driving/
 │
-├── bev_dataset_loader.py      # Dataset and augmentation pipeline
-├── configs/                  # Configuration files (optional)
-├── experiments/              # Training / evaluation scripts
-├── assets/                   # Figures / diagrams
-└── README.md
+├── bev_dataset.py          (Current Progress)
+├── bev_encoder.py          (Next Step)
+├── bev_transform.py       （Projection / Geometry）
+├── bev_planner.py          (Future)
 ```
 
 ---
@@ -78,7 +77,7 @@ pip install numpy nuscenes-devkit
 ## 🚀 Usage
 
 ```python
-from bev_dataset_loader import BEVAutoDriveDataset
+from bev_dataset import BEVAutoDriveDataset
 
 dataset = BEVAutoDriveDataset(
     nusc=nusc,
