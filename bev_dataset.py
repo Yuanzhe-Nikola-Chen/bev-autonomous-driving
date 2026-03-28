@@ -1,6 +1,12 @@
 import numpy as np
 from nuscenes.utils.splits import create_splits_scenes
 
+import os
+import torch
+from PIL import Image
+from pyquaternion import Quaternion
+
+# Part 1: Input Data Collection and Preprocessing
 
 class BEVAutoDriveDataset:
     def __init__(self, nusc, is_train, data_aug_conf):
@@ -119,3 +125,138 @@ class BEVAutoDriveDataset:
             rotate = 0.0
 
         return resize, resize_dims, crop, flip, rotate
+        
+# Part 2: Multi-View Image Data Extraction and Camera Configuration
+
+class BEVAutoDriveDataset:
+    """
+    Dataset loader for multi-camera BEV perception.
+
+    This module handles:
+    - Image loading from NuScenes-style dataset
+    - Camera parameter extraction (intrinsics & extrinsics)
+    - Geometric data augmentation
+    - Post-homography transformation tracking
+
+    Designed for research in BEV perception, control, and planning.
+    """
+
+    def get_image_data(self, record, camera_list):
+        """
+        Load multi-camera images and corresponding calibration data.
+
+        Args:
+            record (dict): A NuScenes sample record
+            camera_list (list): List of camera names (e.g., CAM_FRONT, CAM_BACK, ...)
+
+        Returns:
+            tuple:
+                images      (Tensor): [N, C, H, W]
+                rotations   (Tensor): [N, 3, 3]
+                translations(Tensor): [N, 3]
+                intrinsics  (Tensor): [N, 3, 3]
+                post_rots   (Tensor): [N, 3, 3]
+                post_trans  (Tensor): [N, 3]
+        """
+
+        images = []
+        rotations = []
+        translations = []
+        intrinsics = []
+        post_rots = []
+        post_trans = []
+
+        for cam in camera_list:
+            # Retrieve sample data for this camera
+            sample_data = self.nusc.get('sample_data', record['data'][cam])
+
+            # Load image from disk
+            img_path = os.path.join(self.nusc.dataroot, sample_data['filename'])
+            img = Image.open(img_path)
+
+            # Initialize post-transformation (image plane augmentation tracking)
+            post_rot = torch.eye(3)
+            post_tran = torch.zeros(3)
+
+            # Load camera calibration parameters
+            calib = self.nusc.get('calibrated_sensor', sample_data['calibrated_sensor_token'])
+
+            intrinsic = torch.tensor(calib['camera_intrinsic'], dtype=torch.float32)
+
+            rotation = torch.tensor(
+                Quaternion(calib['rotation']).rotation_matrix,
+                dtype=torch.float32
+            )
+
+            translation = torch.tensor(calib['translation'], dtype=torch.float32)
+
+            # Sample augmentation parameters
+            resize, resize_dims, crop, flip, rotate = self.sample_augmentation()
+
+            # Apply augmentation and update post-transform
+            img, rot_aug, tran_aug = img_transform(
+                img,
+                post_rot[:2, :2],
+                post_tran[:2],
+                resize=resize,
+                resize_dims=resize_dims,
+                crop=crop,
+                flip=flip,
+                rotate=rotate
+            )
+
+            # Update post transformation matrices (lift to 3D homogeneous form)
+            post_rot[:2, :2] = rot_aug
+            post_tran[:2] = tran_aug
+
+            # Normalize and store
+            images.append(normalize_img(img))
+            intrinsics.append(intrinsic)
+            rotations.append(rotation)
+            translations.append(translation)
+            post_rots.append(post_rot)
+            post_trans.append(post_tran)
+
+        return (
+            torch.stack(images),
+            torch.stack(rotations),
+            torch.stack(translations),
+            torch.stack(intrinsics),
+            torch.stack(post_rots),
+            torch.stack(post_trans),
+        )
+
+    def choose_cameras(self):
+        """
+        Randomly select a subset of cameras during training
+        to improve robustness and reduce computation.
+
+        Returns:
+            list: selected camera names
+        """
+
+        available_cams = self.data_aug_conf['cams']
+
+        if self.is_train and self.data_aug_conf['Ncams'] < len(available_cams):
+            selected = np.random.choice(
+                available_cams,
+                self.data_aug_conf['Ncams'],
+                replace=False
+            )
+        else:
+            selected = available_cams
+
+        return list(selected)
+
+    def __len__(self):
+        """Return dataset size."""
+        return len(self.ixes)
+
+    def __str__(self):
+        """Readable dataset summary."""
+        split = "train" if self.is_train else "val"
+        return (
+            f"BEVAutoDriveDataset: {len(self)} samples | "
+            f"Split: {split} | "
+            f"Augmentation: {self.data_aug_conf}"
+        )
